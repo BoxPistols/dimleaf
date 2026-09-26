@@ -12,6 +12,8 @@ cat > "$app/Contents/Info.plist" <<PLIST
 <key>CFBundleExecutable</key><string>Dimleaf</string>
 <key>CFBundleIdentifier</key><string>local.dimleaf</string>
 <key>CFBundleName</key><string>Dimleaf</string>
+<key>CFBundleShortVersionString</key><string>0.1.0</string>
+<key>CFBundleVersion</key><string>1</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>LSUIElement</key><true/>

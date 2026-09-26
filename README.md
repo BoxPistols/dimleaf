@@ -28,6 +28,16 @@ When **on**:
 
 ## Install
 
+### Download
+
+1. Download `Dimleaf-x.y.z.zip` from [Releases](https://github.com/BoxPistols/dimleaf/releases) and unzip it.
+2. Move `Dimleaf.app` to `~/Applications` (launch-at-login and the CLI expect it there).
+3. The app is not notarized: right-click `Dimleaf.app` → **Open** the first time.
+4. Optional: run `./install-helper.sh` from the unzipped folder for the pmset / daemon parts.
+5. Optional CLI: `ln -s ~/Applications/Dimleaf.app/Contents/MacOS/Dimleaf ~/.local/bin/dimleaf`
+
+### Build from source
+
 ```sh
 git clone https://github.com/BoxPistols/dimleaf.git
 cd dimleaf
