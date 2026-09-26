@@ -30,7 +30,7 @@ OS の低電力モードが無い Mac（`pmset -g cap` に `dimleafmode` が出�
 git clone https://github.com/BoxPistols/dimleaf.git
 cd dimleaf
 ./build.sh install              # ビルドして ~/Applications に配置、~/.local/bin/dimleaf を作成
-sudo ./install-helper.sh        # 任意: pmset とデーモン制御を有効にする
+./install-helper.sh             # 任意: pmset とデーモン制御を有効にする（パスワードを聞かれます）
 ```
 
 自動起動はメニューの「ログイン時に起動」から。

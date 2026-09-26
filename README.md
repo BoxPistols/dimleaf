@@ -32,7 +32,7 @@ When **on**:
 git clone https://github.com/BoxPistols/dimleaf.git
 cd dimleaf
 ./build.sh install              # builds, copies to ~/Applications, links ~/.local/bin/dimleaf
-sudo ./install-helper.sh        # optional: enables the pmset / daemon parts
+./install-helper.sh             # optional: enables the pmset / daemon parts (asks for your password)
 ```
 
 Enable "Launch at login" from the menu.
