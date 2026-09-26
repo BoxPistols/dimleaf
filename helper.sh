@@ -7,8 +7,9 @@ dir="/Library/Application Support/Dimleaf"
 backup="$dir/pmset-battery.bak"
 # 変更するキー。off で元の値に戻す
 keys="displaysleep tcpkeepalive standbydelaylow standbydelayhigh powernap halfdim lessbright"
-# 常駐して電力を使いがちなシステムデーモン（索引・写真解析・iCloud 同期など）
-daemons="mds mds_stores mdworker_shared mediaanalysisd photoanalysisd cloudd bird suggestd corespotlightd"
+# 常駐して電力を使いがちなシステムデーモン（索引作成・写真解析など）
+# bird/cloudd（iCloud 同期）と corespotlightd は前面アプリがファイルを開く・検索するときに待たされるので対象外
+daemons="mds mds_stores mdworker_shared mediaanalysisd photoanalysisd suggestd"
 
 current() { pmset -g custom | awk -v k="$1" '/^Battery Power:/{b=1;next} /^[A-Z]/{b=0} b && $1==k {print $2}'; }
 daemon_pids() { for d in $daemons; do pgrep -x "$d"; done; }

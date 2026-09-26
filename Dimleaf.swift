@@ -312,7 +312,9 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let busy = assertionPIDs(), skip = Prefs.excluded, me = getpid()
             for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular {
                 let pid = app.processIdentifier
-                if pid == me || (!deep && app.isActive) || skip.contains(app.bundleIdentifier ?? "") || busy.contains(pid) { continue }
+                // 起動直後はまだ前面になっていないので、ここで絞ると起動そのものが遅くなる
+                let launching = app.launchDate.map { Date().timeIntervalSince($0) < 60 } ?? false
+                if pid == me || launching || (!deep && app.isActive) || skip.contains(app.bundleIdentifier ?? "") || busy.contains(pid) { continue }
                 want.insert(pid)
                 want.formUnion(descendants(pid).filter { !busy.contains($0) })
             }
@@ -520,4 +522,12 @@ let app = NSApplication.shared
 let delegate = App()
 app.delegate = delegate
 app.setActivationPolicy(.accessory)
+// pkill・ログアウト等の SIGTERM/SIGINT でも applicationWillTerminate を通して設定を元に戻す
+let signalSources = [SIGTERM, SIGINT].map { sig -> DispatchSourceSignal in
+    signal(sig, SIG_IGN)
+    let s = DispatchSource.makeSignalSource(signal: sig, queue: .main)
+    s.setEventHandler { NSApp.terminate(nil) }
+    s.resume()
+    return s
+}
 app.run()
