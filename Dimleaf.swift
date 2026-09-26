@@ -5,15 +5,15 @@ import IOKit.pwr_mgt
 
 // 仮想低電力モード。この Mac（MacBook10,1 / Intel / macOS 13）は OS の低電力モード非対応のため、
 // pmset のバッテリー設定・画面/キーボード輝度・プロセス優先度・Wi-Fi を組み合わせて近い効果を出す
-// 同じバイナリを引数付きで起動すると CLI（lowpower on|off|toggle|status）として動く
+// 同じバイナリを引数付きで起動すると CLI（dimleaf on|off|toggle|status）として動く
 
-let bundleID = "local.lowpower"
-let helperPath = "/Library/PrivilegedHelperTools/local.lowpower.helper"
-let commandNote = Notification.Name("local.lowpower.command")
+let bundleID = "local.dimleaf"
+let helperPath = "/Library/PrivilegedHelperTools/local.dimleaf.helper"
+let commandNote = Notification.Name("local.dimleaf.command")
 let home = FileManager.default.homeDirectoryForCurrentUser
-let stateFile = home.appendingPathComponent("Library/Application Support/LowPower/state.json")
-let agentFile = home.appendingPathComponent("Library/LaunchAgents/local.lowpower.plist")
-let appPath = home.appendingPathComponent("Applications/LowPower.app").path
+let stateFile = home.appendingPathComponent("Library/Application Support/Dimleaf/state.json")
+let agentFile = home.appendingPathComponent("Library/LaunchAgents/local.dimleaf.plist")
+let appPath = home.appendingPathComponent("Applications/Dimleaf.app").path
 let deepLevel: Float = 0.06
 
 struct Prefs {
@@ -28,7 +28,7 @@ struct Prefs {
     static var throttleApps: Bool { get { get("throttleApps", true) } set { d.set(newValue, forKey: "throttleApps") } }
     static var keyboardOff: Bool { get { get("keyboardOff", true) } set { d.set(newValue, forKey: "keyboardOff") } }
     static var wifiOffIdle: Bool { get { get("wifiOffIdle", false) } set { d.set(newValue, forKey: "wifiOffIdle") } }
-    // 抑制すると困るアプリ（音声・通話・動画・ターミナル）。追加は defaults write local.lowpower exclude -array-add <bundle id>
+    // 抑制すると困るアプリ（音声・通話・動画・ターミナル）。追加は defaults write local.dimleaf exclude -array-add <bundle id>
     static let defaultExcluded: Set<String> = [
         "com.apple.Terminal", "com.googlecode.iterm2", "com.apple.Music", "com.spotify.client", "com.apple.podcasts",
         "us.zoom.xos", "com.microsoft.teams", "com.microsoft.teams2", "com.apple.FaceTime", "com.hnc.Discord",
@@ -401,10 +401,10 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func updateUI() {
         let symbol = deep ? "moon.zzz.fill" : enabled ? "leaf.fill" : "leaf"
-        let img = NSImage(systemSymbolName: symbol, accessibilityDescription: "LowPower")
+        let img = NSImage(systemSymbolName: symbol, accessibilityDescription: "Dimleaf")
         img?.isTemplate = true
         item.button?.image = img
-        item.button?.toolTip = "LowPower: \(modeName)"
+        item.button?.toolTip = "Dimleaf: \(modeName)"
         let state: [String: Any] = ["enabled": enabled, "deep": deep, "helper": helperOK, "onBattery": power.onBattery,
                                     "percent": power.percent, "throttledPIDs": throttled.count]
         try? FileManager.default.createDirectory(at: stateFile.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -504,10 +504,10 @@ func runCLI(_ cmd: String) -> Int32 {
         DistributedNotificationCenter.default().postNotificationName(commandNote, object: cmd, userInfo: nil, deliverImmediately: true)
         return 0
     case "status":
-        print((try? String(contentsOf: stateFile)) ?? "LowPower が起動していません")
+        print((try? String(contentsOf: stateFile)) ?? "Dimleaf が起動していません")
         return 0
     default:
-        FileHandle.standardError.write("usage: lowpower on|off|toggle|status\n".data(using: .utf8)!)
+        FileHandle.standardError.write("usage: dimleaf on|off|toggle|status\n".data(using: .utf8)!)
         return 2
     }
 }

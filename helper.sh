@@ -1,9 +1,9 @@
 #!/bin/sh
-# LowPower の root 権限部分（pmset のバッテリー設定・システムデーモンの優先度）
+# Dimleaf の root 権限部分（pmset のバッテリー設定・システムデーモンの優先度）
 # sudoers で NOPASSWD 許可されるため、引数は固定の語（on/off/throttle/status）だけ受け付ける
 set -u
 PATH=/usr/bin:/bin:/usr/sbin:/sbin
-dir="/Library/Application Support/LowPower"
+dir="/Library/Application Support/Dimleaf"
 backup="$dir/pmset-battery.bak"
 # 変更するキー。off で元の値に戻す
 keys="displaysleep tcpkeepalive standbydelaylow standbydelayhigh powernap halfdim lessbright"

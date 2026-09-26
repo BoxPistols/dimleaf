@@ -1,6 +1,6 @@
-# LowPower
+# Dimleaf
 
-OS の低電力モードが無い Mac（`pmset -g cap` に `lowpowermode` が出ない古い Intel MacBook など）に、**仮想の低電力モード**を足すメニューバーアプリです。
+OS の低電力モードが無い Mac（`pmset -g cap` に `dimleafmode` が出ない古い Intel MacBook など）に、**仮想の低電力モード**を足すメニューバーアプリです。
 
 > Apple とは無関係です。macOS の既存の設定を組み合わせたもので、Apple の低電力モードを有効にするものではありません。
 
@@ -27,9 +27,9 @@ OS の低電力モードが無い Mac（`pmset -g cap` に `lowpowermode` が出
 ## インストール
 
 ```sh
-git clone https://github.com/BoxPistols/lowpower.git
-cd lowpower
-./build.sh install              # ビルドして ~/Applications に配置、~/.local/bin/lowpower を作成
+git clone https://github.com/BoxPistols/dimleaf.git
+cd dimleaf
+./build.sh install              # ビルドして ~/Applications に配置、~/.local/bin/dimleaf を作成
 sudo ./install-helper.sh        # 任意: pmset とデーモン制御を有効にする
 ```
 
@@ -37,12 +37,12 @@ sudo ./install-helper.sh        # 任意: pmset とデーモン制御を有効�
 
 ### ヘルパーについて
 
-`install-helper.sh` は root 所有のスクリプトを `/Library/PrivilegedHelperTools/local.lowpower.helper` に置き、決まった引数（`on` `off` `throttle` `status`）に限ってパスワード無しで実行できる sudoers 設定を入れます。入れる前に [`helper.sh`](helper.sh) を読んでください（短いです）。ヘルパーが無くても、それ以外の機能は動きます。
+`install-helper.sh` は root 所有のスクリプトを `/Library/PrivilegedHelperTools/local.dimleaf.helper` に置き、決まった引数（`on` `off` `throttle` `status`）に限ってパスワード無しで実行できる sudoers 設定を入れます。入れる前に [`helper.sh`](helper.sh) を読んでください（短いです）。ヘルパーが無くても、それ以外の機能は動きます。
 
 ## CLI
 
 ```sh
-lowpower on | off | toggle | status
+dimleaf on | off | toggle | status
 ```
 
 ## 設定
@@ -50,7 +50,7 @@ lowpower on | off | toggle | status
 メニューから変更できます。抑制から外すアプリを追加するには:
 
 ```sh
-defaults write local.lowpower exclude -array-add com.example.app
+defaults write local.dimleaf exclude -array-add com.example.app
 ```
 
 ## アンインストール

@@ -1,6 +1,6 @@
-# LowPower
+# Dimleaf
 
-A menu bar app that gives a **virtual low power mode** to Macs that don't have one — e.g. older Intel MacBooks where `pmset -g cap` lists no `lowpowermode`.
+A menu bar app that gives a **virtual low power mode** to Macs that don't have one — e.g. older Intel MacBooks where `pmset -g cap` lists no `dimleafmode`.
 
 [日本語](README.ja.md)
 
@@ -29,9 +29,9 @@ When **on**:
 ## Install
 
 ```sh
-git clone https://github.com/BoxPistols/lowpower.git
-cd lowpower
-./build.sh install              # builds, copies to ~/Applications, links ~/.local/bin/lowpower
+git clone https://github.com/BoxPistols/dimleaf.git
+cd dimleaf
+./build.sh install              # builds, copies to ~/Applications, links ~/.local/bin/dimleaf
 sudo ./install-helper.sh        # optional: enables the pmset / daemon parts
 ```
 
@@ -39,12 +39,12 @@ Enable "Launch at login" from the menu.
 
 ### About the helper
 
-`install-helper.sh` installs a root-owned script at `/Library/PrivilegedHelperTools/local.lowpower.helper` and a sudoers rule that lets your user run it **only** with the fixed arguments `on`, `off`, `throttle` and `status`, without a password. Read [`helper.sh`](helper.sh) before installing — it is short. Without the helper everything else still works.
+`install-helper.sh` installs a root-owned script at `/Library/PrivilegedHelperTools/local.dimleaf.helper` and a sudoers rule that lets your user run it **only** with the fixed arguments `on`, `off`, `throttle` and `status`, without a password. Read [`helper.sh`](helper.sh) before installing — it is short. Without the helper everything else still works.
 
 ## CLI
 
 ```sh
-lowpower on | off | toggle | status
+dimleaf on | off | toggle | status
 ```
 
 ## Settings
@@ -52,7 +52,7 @@ lowpower on | off | toggle | status
 All in the menu. To exclude more apps from throttling:
 
 ```sh
-defaults write local.lowpower exclude -array-add com.example.app
+defaults write local.dimleaf exclude -array-add com.example.app
 ```
 
 ## Uninstall
