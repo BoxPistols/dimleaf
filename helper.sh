@@ -23,7 +23,10 @@ on)
   fi
   # バッテリー駆動時の設定だけ変える（AC 時の設定は触らない）
   # standbydelay 短縮 = 蓋を閉じてから早めに深いスリープへ / tcpkeepalive 0 = スリープ中の通信を止める
-  pmset -b displaysleep 2 tcpkeepalive 0 standbydelaylow 900 standbydelayhigh 3600 powernap 0 halfdim 1 lessbright 1
+  # 機種や OS によって無いキーがあり、1 つでも混ざると pmset 全体が失敗するので 1 つずつ、存在するキーだけ設定する
+  for kv in displaysleep:2 tcpkeepalive:0 standbydelaylow:900 standbydelayhigh:3600 powernap:0 halfdim:1 lessbright:1; do
+    k=${kv%%:*}; [ -n "$(current "$k")" ] && pmset -b "$k" "${kv#*:}"
+  done
   for p in $(daemon_pids); do taskpolicy -b -p "$p" 2>/dev/null; done
   ;;
 off)

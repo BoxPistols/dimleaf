@@ -22,7 +22,7 @@ When **on**:
 
 ## Requirements
 
-- macOS 13 or later, built-in display
+- macOS 11 or later (macOS 11–12 untested), built-in display
 - Xcode Command Line Tools (`xcode-select --install`)
 - Built and tested on an Intel MacBook (MacBook10,1, macOS 13.7). Apple Silicon is untested.
 

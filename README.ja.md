@@ -20,7 +20,7 @@ OS の低電力モードが無い Mac（`pmset -g cap` に `dimleafmode` が出�
 
 ## 必要なもの
 
-- macOS 13 以降、内蔵ディスプレイ
+- macOS 11 以降（11〜12 は未確認）、内蔵ディスプレイ
 - Xcode Command Line Tools（`xcode-select --install`）
 - Intel MacBook（MacBook10,1 / macOS 13.7）で開発・動作確認。Apple Silicon は未確認
 
