@@ -28,6 +28,8 @@ struct Prefs {
     static var throttleApps: Bool { get { get("throttleApps", true) } set { d.set(newValue, forKey: "throttleApps") } }
     static var keyboardOff: Bool { get { get("keyboardOff", true) } set { d.set(newValue, forKey: "keyboardOff") } }
     static var wifiOffIdle: Bool { get { get("wifiOffIdle", false) } set { d.set(newValue, forKey: "wifiOffIdle") } }
+    // メモリ大食いとみなすしきい値（MB）。0 なら実メモリの半分（最低 2GB）。defaults write local.dimleaf hogMB -int 3000
+    static var hogMB: Int { return get("hogMB", 0) }  // 先頭が get だとアクセサ宣言と解釈されるため return を付ける
     // 抑制すると困るアプリ（音声・通話・動画・ターミナル）。追加は defaults write local.dimleaf exclude -array-add <bundle id>
     static let defaultExcluded: Set<String> = [
         "com.apple.Terminal", "com.googlecode.iterm2", "com.apple.Music", "com.spotify.client", "com.apple.podcasts",
@@ -141,6 +143,53 @@ func assertionPIDs() -> Set<pid_t> {
 let PRIO_DARWIN_PROCESS_: Int32 = 4, PRIO_DARWIN_BG_: Int32 = 0x1000
 func setBackground(_ pid: pid_t, _ on: Bool) { setpriority(PRIO_DARWIN_PROCESS_, id_t(pid), on ? PRIO_DARWIN_BG_ : 0) }
 
+// メモリの見張り。footprint は圧縮・スワップ分を圧縮前の大きさで数えるので、実際の消費より大きく出ることがある
+struct Proc { let pid: pid_t, name: String, bytes: UInt64 }
+
+enum Mem {
+    // 止めても launchd がすぐ立ち上げ直すユーザーデーモン。リークしたら再起動で戻る
+    static let restartable: Set<String> = ["bird", "cloudd", "fileproviderd", "photoanalysisd", "mediaanalysisd", "suggestd"]
+    static var threshold: UInt64 {
+        Prefs.hogMB > 0 ? UInt64(Prefs.hogMB) << 20 : max(2 << 30, ProcessInfo.processInfo.physicalMemory / 2)
+    }
+    static var swapUsed: UInt64 {
+        var s = xsw_usage(), n = MemoryLayout<xsw_usage>.stride
+        return sysctlbyname("vm.swapusage", &s, &n, nil, 0) == 0 ? s.xsu_used : 0
+    }
+    // 1 = 正常, 2 = 注意, 4 = 逼迫
+    static var pressure: Int {
+        var v: Int32 = 0, n = MemoryLayout<Int32>.size
+        return sysctlbyname("kern.memorystatus_vm_pressure_level", &v, &n, nil, 0) == 0 ? Int(v) : 0
+    }
+    static var pressureName: String { [1: "正常", 2: "注意", 4: "逼迫"][pressure] ?? "不明" }
+    // proc_name は 32 文字で切れるので、実行ファイルのパスの末尾を使う
+    static func name(_ pid: pid_t) -> String {
+        var b = [CChar](repeating: 0, count: 4096)
+        guard proc_pidpath(pid, &b, UInt32(b.count)) > 0 else { return "pid \(pid)" }
+        return (String(cString: b) as NSString).lastPathComponent
+    }
+    static func footprint(_ pid: pid_t) -> UInt64? {
+        var ri = rusage_info_v2()
+        let r = withUnsafeMutablePointer(to: &ri) {
+            $0.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { proc_pid_rusage(pid, RUSAGE_INFO_V2, $0) }
+        }
+        return r == 0 ? ri.ri_phys_footprint : nil
+    }
+    // 読めるのは自分のユーザーのプロセスだけ（root のデーモンは対象外になる）
+    static func top(_ n: Int) -> [Proc] {
+        var pids = [pid_t](repeating: 0, count: 4096)
+        let c = Int(proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size)))
+        return pids.prefix(max(c, 0)).compactMap { pid in
+            guard pid > 0, let b = footprint(pid) else { return nil }
+            return Proc(pid: pid, name: name(pid), bytes: b)
+        }.sorted { $0.bytes > $1.bytes }.prefix(n).map { $0 }
+    }
+}
+
+func formatBytes(_ b: UInt64) -> String {
+    b >= 1 << 30 ? String(format: "%.1f GB", Double(b) / Double(1 << 30)) : "\(b >> 20) MB"
+}
+
 func descendants(_ pid: pid_t, depth: Int = 2) -> [pid_t] {
     guard depth > 0 else { return [] }
     var buf = [pid_t](repeating: 0, count: 1024)
@@ -182,6 +231,7 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var wifiWasOn = false
     var idleTimer: Timer?, maintTimer: Timer?, mouseMonitor: Any?
     var maintTicks = 0
+    var memTop = [Proc](), hogs = [Proc]()
 
     func applicationDidFinishLaunching(_ n: Notification) {
         item.menu = NSMenu()
@@ -217,7 +267,11 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if !power.onBattery && Prefs.autoOffOnAC { want = false }
         if want { setEnabled(true) }
         scheduleIdle()
-        updateUI()
+        // メモリの見張りは低電力モードの ON/OFF に関係なく常に動かす
+        let mt = Timer(timeInterval: 300, repeats: true) { [weak self] _ in self?.checkMemory() }
+        mt.tolerance = 60
+        RunLoop.main.add(mt, forMode: .common)
+        checkMemory()
     }
 
     func applicationWillTerminate(_ n: Notification) {
@@ -399,16 +453,42 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc func screensWoke() { exitDeep() }
 
+    // MARK: メモリの見張り
+
+    func checkMemory() {
+        memTop = Mem.top(8)
+        hogs = memTop.filter { $0.bytes >= Mem.threshold && $0.pid != getpid() }
+        updateUI()
+    }
+
+    // 自動では止めない。footprint が実際の消費より大きく出ることがあるので、判断はユーザーに任せる
+    func relieveAction(_ p: Proc) -> (String, () -> Void)? {
+        if let app = NSRunningApplication(processIdentifier: p.pid), app.activationPolicy == .regular {
+            return ("終了", { app.terminate() })
+        }
+        guard Mem.restartable.contains(p.name) else { return nil }
+        return ("再起動", { [weak self] in
+            kill(p.pid, SIGTERM)
+            // bird は SIGTERM を無視することがあるので、残っていれば強制終了する（launchd がすぐ立ち上げ直す）
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                if kill(p.pid, 0) == 0, Mem.name(p.pid) == p.name { kill(p.pid, SIGKILL) }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) { self?.checkMemory() }
+            }
+        })
+    }
+
     // MARK: UI
 
     func updateUI() {
-        let symbol = deep ? "moon.zzz.fill" : enabled ? "leaf.fill" : "leaf"
+        let symbol = !hogs.isEmpty ? "exclamationmark.triangle.fill" : deep ? "moon.zzz.fill" : enabled ? "leaf.fill" : "leaf"
         let img = NSImage(systemSymbolName: symbol, accessibilityDescription: "Dimleaf")
         img?.isTemplate = true
         item.button?.image = img
-        item.button?.toolTip = "Dimleaf: \(modeName)"
+        item.button?.toolTip = "Dimleaf: \(modeName)" + hogs.map { "\n\($0.name) が \(formatBytes($0.bytes)) 使用中" }.joined()
         let state: [String: Any] = ["enabled": enabled, "deep": deep, "helper": helperOK, "onBattery": power.onBattery,
-                                    "percent": power.percent, "throttledPIDs": throttled.count]
+                                    "percent": power.percent, "throttledPIDs": throttled.count,
+                                    "swapMB": Mem.swapUsed >> 20, "pressure": Mem.pressureName,
+                                    "hogs": hogs.map { ["name": $0.name, "pid": Int($0.pid), "MB": $0.bytes >> 20] }]
         try? FileManager.default.createDirectory(at: stateFile.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? JSONSerialization.data(withJSONObject: state, options: [.sortedKeys]).write(to: stateFile)
     }
@@ -422,6 +502,12 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(info("\(power.onBattery ? "バッテリー" : "電源アダプタ") \(power.percent)%\(left)"))
         menu.addItem(info("状態: \(modeName)\(throttled.isEmpty ? "" : "・抑制中 \(throttled.count) プロセス")"))
         if !helperOK { menu.addItem(info("⚠ pmset/デーモン制御が無効（sudo install-helper.sh 未実行）")) }
+        checkMemory()
+        menu.addItem(info("メモリ: \(Mem.pressureName)・スワップ \(formatBytes(Mem.swapUsed))"))
+        for p in hogs {
+            let label = "⚠ \(p.name) が \(formatBytes(p.bytes)) 使用中"
+            if let (verb, act) = relieveAction(p) { menu.addItem(Item("\(label) — \(verb)", act)) } else { menu.addItem(info(label)) }
+        }
         menu.addItem(.separator())
         menu.addItem(Item("低電力モード", checked: enabled, key: "l") { [unowned self] in setEnabled(!enabled) })
         menu.addItem(.separator())
@@ -458,6 +544,10 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         top.submenu = NSMenu()
         for line in topProcesses() { top.submenu?.addItem(info(line)) }
         menu.addItem(top)
+        let mem = NSMenuItem(title: "メモリ使用の上位（圧縮分を含む）", action: nil, keyEquivalent: "")
+        mem.submenu = NSMenu()
+        for p in memTop.prefix(6) { mem.submenu?.addItem(info("\(formatBytes(p.bytes))  \(p.name)")) }
+        menu.addItem(mem)
         menu.addItem(Item("ログイン時に起動", checked: FileManager.default.fileExists(atPath: agentFile.path)) { toggleLoginItem() })
         menu.addItem(Item("終了（設定を元に戻す）", key: "q") { NSApp.terminate(nil) })
     }
@@ -493,11 +583,12 @@ func toggleLoginItem() {
 // MARK: CLI
 
 // 終了直後も数秒はアプリ一覧に残るので、プロセスが実在するかも kill(pid, 0) で確かめる
-var appRunning: Bool {
-    NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).contains {
+var runningApp: NSRunningApplication? {
+    NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first {
         $0.processIdentifier != getpid() && kill($0.processIdentifier, 0) == 0
     }
 }
+var appRunning: Bool { runningApp != nil }
 
 func readState() -> [String: Any]? {
     (try? Data(contentsOf: stateFile)).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
@@ -540,8 +631,15 @@ func runCLI(_ cmd: String) -> Int32 {
         return 0
     case "status":
         // state.json はアプリ終了後も残るので、実際に動いているかを先に確かめる
-        guard appRunning, let s = (try? String(contentsOf: stateFile)) else {
+        guard let app = runningApp else {
             print("Dimleaf が起動していません")
+            return 1
+        }
+        // 起動直後は前回の state.json が残っているので、書き直されるまで少し待つ
+        let launched = app.launchDate ?? .distantPast
+        guard wait(10, until: { (stateModified() ?? .distantPast) >= launched }),
+              let s = try? String(contentsOf: stateFile) else {
+            print("Dimleaf は起動中です")
             return 1
         }
         print(s)
