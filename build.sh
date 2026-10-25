@@ -21,7 +21,9 @@ cat > "$app/Contents/Info.plist" <<PLIST
 PLIST
 codesign --force -s - "$app"
 if [ "${1:-}" = install ]; then
-  pkill -x Dimleaf 2>/dev/null && sleep 1 || true
+  # 終了時に設定を元に戻すので 1 秒では終わらない。消えるまで待たないと open が -600 で失敗する
+  pkill -x Dimleaf 2>/dev/null || true
+  for _ in $(seq 50); do pgrep -x Dimleaf >/dev/null || break; sleep 0.2; done
   rm -rf ~/Applications/Dimleaf.app && cp -R "$app" ~/Applications/
   mkdir -p ~/.local/bin && ln -sf ~/Applications/Dimleaf.app/Contents/MacOS/Dimleaf ~/.local/bin/dimleaf
   open ~/Applications/Dimleaf.app
