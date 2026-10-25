@@ -20,6 +20,8 @@ When **on**:
 
 **Automatic switching** — on when unplugged, off when plugged in, on below a battery threshold, re-evaluated when the lid opens.
 
+**Memory watch** (always on, even when low power mode is off) — every 5 minutes, checks how much memory your processes use (including compressed/swapped pages). A process above half of physical memory (at least 2 GB) turns the menu bar icon into a warning and is listed at the top of the menu, with **Quit** for regular apps or **Restart** for daemons that launchd restarts on its own (iCloud Drive's `bird`, `cloudd`, …). Nothing is stopped automatically. The menu also shows memory pressure, swap used, and the top memory users.
+
 ## Requirements
 
 - macOS 11 or later (macOS 11–12 untested), built-in display
@@ -63,6 +65,12 @@ All in the menu. To exclude more apps from throttling:
 
 ```sh
 defaults write local.dimleaf exclude -array-add com.example.app
+```
+
+To change the memory-watch threshold (MB; delete the key to go back to the default):
+
+```sh
+defaults write local.dimleaf hogMB -int 3000
 ```
 
 ## Uninstall

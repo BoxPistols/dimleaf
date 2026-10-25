@@ -18,6 +18,8 @@ OS の低電力モードが無い Mac（`pmset -g cap` に `dimleafmode` が出�
 
 **自動切り替え** — 電源を外すと ON、つなぐと OFF、残量がしきい値を下回ると ON、蓋を開けたら状態を見直す。
 
+**メモリの見張り**（低電力モードが OFF でも常に動く）— 5 分おきに、自分のプロセスのメモリ使用量（圧縮・スワップ分を含む）を測る。実メモリの半分（最低 2GB）を超えたプロセスがあると、メニューバーのアイコンが警告に変わり、メニューの先頭に出る。普通のアプリは「終了」、launchd が自動で立ち上げ直すデーモン（iCloud Drive の `bird`、`cloudd` など）は「再起動」を選べる。自動では何も止めない。メニューにはメモリの圧迫度・スワップ量・使用量の上位も出る。
+
 ## 必要なもの
 
 - macOS 11 以降（11〜12 は未確認）、内蔵ディスプレイ
@@ -61,6 +63,12 @@ dimleaf on | off | toggle | status
 
 ```sh
 defaults write local.dimleaf exclude -array-add com.example.app
+```
+
+メモリの見張りのしきい値を変えるには（MB 単位。キーを消すと既定に戻る）:
+
+```sh
+defaults write local.dimleaf hogMB -int 3000
 ```
 
 ## アンインストール
