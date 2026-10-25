@@ -492,21 +492,59 @@ func toggleLoginItem() {
 
 // MARK: CLI
 
+// 終了直後も数秒はアプリ一覧に残るので、プロセスが実在するかも kill(pid, 0) で確かめる
+var appRunning: Bool {
+    NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).contains {
+        $0.processIdentifier != getpid() && kill($0.processIdentifier, 0) == 0
+    }
+}
+
+func readState() -> [String: Any]? {
+    (try? Data(contentsOf: stateFile)).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+}
+
+func stateModified() -> Date? {
+    (try? FileManager.default.attributesOfItem(atPath: stateFile.path))?[.modificationDate] as? Date
+}
+
+// 条件が満たされるまで 0.2 秒おきに待つ。遅い機種でも起動を取りこぼさないよう、決め打ちの sleep にしない
+func wait(_ seconds: Double, until ok: () -> Bool) -> Bool {
+    let end = Date().addingTimeInterval(seconds)
+    while Date() < end { if ok() { return true }; usleep(200_000) }
+    return ok()
+}
+
 func runCLI(_ cmd: String) -> Int32 {
     switch cmd {
     case "on", "off", "toggle":
-        let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).contains { $0.processIdentifier != getpid() }
-        if !running {
+        if !appRunning {
+            // 起動処理の最後に state.json が書かれる＝コマンド受信の準備ができた合図
+            let start = Date()
             let p = Process()
             p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
             p.arguments = ["-g", "-a", appPath]
             try? p.run(); p.waitUntilExit()
-            sleep(2)
+            guard wait(30, until: { appRunning && (stateModified() ?? .distantPast) >= start }) else {
+                FileHandle.standardError.write("Dimleaf を起動できませんでした（\(appPath)）\n".data(using: .utf8)!)
+                return 1
+            }
         }
+        let was = readState()?["enabled"] as? Bool ?? false
+        let want = cmd == "on" || (cmd == "toggle" && !was)
         DistributedNotificationCenter.default().postNotificationName(commandNote, object: cmd, userInfo: nil, deliverImmediately: true)
+        guard wait(10, until: { readState()?["enabled"] as? Bool == want }) else {
+            FileHandle.standardError.write("Dimleaf が応答しません\n".data(using: .utf8)!)
+            return 1
+        }
+        print(want ? "on" : "off")
         return 0
     case "status":
-        print((try? String(contentsOf: stateFile)) ?? "Dimleaf が起動していません")
+        // state.json はアプリ終了後も残るので、実際に動いているかを先に確かめる
+        guard appRunning, let s = (try? String(contentsOf: stateFile)) else {
+            print("Dimleaf が起動していません")
+            return 1
+        }
+        print(s)
         return 0
     default:
         FileHandle.standardError.write("usage: dimleaf on|off|toggle|status\n".data(using: .utf8)!)
