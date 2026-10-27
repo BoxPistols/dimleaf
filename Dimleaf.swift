@@ -176,13 +176,14 @@ enum Mem {
         return r == 0 ? ri.ri_phys_footprint : nil
     }
     // 読めるのは自分のユーザーのプロセスだけ（root のデーモンは対象外になる）
+    // 名前（proc_pidpath）は上位 n 件だけ引く。全プロセス分引くと 2 倍以上遅い
     static func top(_ n: Int) -> [Proc] {
         var pids = [pid_t](repeating: 0, count: 4096)
         let c = Int(proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size)))
-        return pids.prefix(max(c, 0)).compactMap { pid in
+        return pids.prefix(max(c, 0)).compactMap { pid -> (pid_t, UInt64)? in
             guard pid > 0, let b = footprint(pid) else { return nil }
-            return Proc(pid: pid, name: name(pid), bytes: b)
-        }.sorted { $0.bytes > $1.bytes }.prefix(n).map { $0 }
+            return (pid, b)
+        }.sorted { $0.1 > $1.1 }.prefix(n).map { Proc(pid: $0.0, name: name($0.0), bytes: $0.1) }
     }
 }
 
@@ -232,6 +233,7 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var idleTimer: Timer?, maintTimer: Timer?, mouseMonitor: Any?
     var maintTicks = 0
     var memTop = [Proc](), hogs = [Proc]()
+    var lastState: Data?
 
     func applicationDidFinishLaunching(_ n: Notification) {
         item.menu = NSMenu()
@@ -489,8 +491,14 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                     "percent": power.percent, "throttledPIDs": throttled.count,
                                     "swapMB": Mem.swapUsed >> 20, "pressure": Mem.pressureName,
                                     "hogs": hogs.map { ["name": $0.name, "pid": Int($0.pid), "MB": $0.bytes >> 20] }]
+        // 中身が変わらないときは書かない（5 分ごとのメモリ確認のたびにディスクへ書かないように）
+        // ファイルが消されていたら中身が同じでも書き直す（CLI が state.json を頼りにしているため）
+        guard let data = try? JSONSerialization.data(withJSONObject: state, options: [.sortedKeys]),
+              data != lastState || !FileManager.default.fileExists(atPath: stateFile.path) else { return }
         try? FileManager.default.createDirectory(at: stateFile.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? JSONSerialization.data(withJSONObject: state, options: [.sortedKeys]).write(to: stateFile)
+        // CLI が 0.2 秒おきに読むので、書きかけを読ませないよう atomic にする
+        // 失敗したら覚えている内容を捨て、次回は必ず書き直す
+        lastState = (try? data.write(to: stateFile, options: .atomic)) != nil ? data : nil
     }
 
     var modeName: String { deep ? "無操作で省電力中" : enabled ? "低電力モード ON" : "通常" }

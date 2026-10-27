@@ -1,3 +1,4 @@
 Dimleaf.app/
 .DS_Store
 *.zip
+.build.*/

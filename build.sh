@@ -3,9 +3,14 @@
 set -e
 cd "$(dirname "$0")"
 app=Dimleaf.app
-rm -rf "$app" && mkdir -p "$app/Contents/MacOS"
-swiftc -O -target x86_64-apple-macos11 Dimleaf.swift -o "$app/Contents/MacOS/Dimleaf"
-cat > "$app/Contents/Info.plist" <<PLIST
+# 一時ディレクトリでビルドし、成功したときだけ差し替える。失敗しても前の成果物が残る
+# 同じディスク上に作り、差し替えをコピーではなく名前の変更で済ませる
+tmp=$(mktemp -d ./.build.XXXXXX)
+trap 'rm -rf "$tmp"' EXIT
+trap 'exit 1' HUP INT TERM
+mkdir -p "$tmp/$app/Contents/MacOS"
+swiftc -O -target x86_64-apple-macos11 Dimleaf.swift -o "$tmp/$app/Contents/MacOS/Dimleaf"
+cat > "$tmp/$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -19,7 +24,13 @@ cat > "$app/Contents/Info.plist" <<PLIST
 <key>LSUIElement</key><true/>
 </dict></plist>
 PLIST
-codesign --force -s - "$app"
+codesign --force -s - "$tmp/$app"
+# 古い成果物は新しい方を置けるまで一時ディレクトリへ退避し、置けなかったら戻す
+if [ -e "$app" ]; then mv "$app" "$tmp/old.app"; fi
+if ! mv "$tmp/$app" .; then
+  if [ -e "$tmp/old.app" ]; then mv "$tmp/old.app" "$app"; fi
+  exit 1
+fi
 if [ "${1:-}" = install ]; then
   # 終了時に設定を元に戻すので 1 秒では終わらない。消えるまで待たないと open が -600 で失敗する
   pkill -x Dimleaf 2>/dev/null || true
