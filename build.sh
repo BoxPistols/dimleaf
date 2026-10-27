@@ -25,7 +25,12 @@ cat > "$tmp/$app/Contents/Info.plist" <<PLIST
 </dict></plist>
 PLIST
 codesign --force -s - "$tmp/$app"
-rm -rf "$app" && mv "$tmp/$app" .
+# 古い成果物は新しい方を置けるまで一時ディレクトリへ退避し、置けなかったら戻す
+if [ -e "$app" ]; then mv "$app" "$tmp/old.app"; fi
+if ! mv "$tmp/$app" .; then
+  if [ -e "$tmp/old.app" ]; then mv "$tmp/old.app" "$app"; fi
+  exit 1
+fi
 if [ "${1:-}" = install ]; then
   # 終了時に設定を元に戻すので 1 秒では終わらない。消えるまで待たないと open が -600 で失敗する
   pkill -x Dimleaf 2>/dev/null || true

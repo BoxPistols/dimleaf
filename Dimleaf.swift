@@ -497,7 +497,8 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
               data != lastState || !FileManager.default.fileExists(atPath: stateFile.path) else { return }
         try? FileManager.default.createDirectory(at: stateFile.deletingLastPathComponent(), withIntermediateDirectories: true)
         // CLI が 0.2 秒おきに読むので、書きかけを読ませないよう atomic にする
-        if (try? data.write(to: stateFile, options: .atomic)) != nil { lastState = data }
+        // 失敗したら覚えている内容を捨て、次回は必ず書き直す
+        lastState = (try? data.write(to: stateFile, options: .atomic)) != nil ? data : nil
     }
 
     var modeName: String { deep ? "無操作で省電力中" : enabled ? "低電力モード ON" : "通常" }
