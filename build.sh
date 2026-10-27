@@ -3,9 +3,12 @@
 set -e
 cd "$(dirname "$0")"
 app=Dimleaf.app
-rm -rf "$app" && mkdir -p "$app/Contents/MacOS"
-swiftc -O -target x86_64-apple-macos11 Dimleaf.swift -o "$app/Contents/MacOS/Dimleaf"
-cat > "$app/Contents/Info.plist" <<PLIST
+# 一時ディレクトリでビルドし、成功したときだけ差し替える。失敗しても前の成果物が残る
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+mkdir -p "$tmp/$app/Contents/MacOS"
+swiftc -O -target x86_64-apple-macos11 Dimleaf.swift -o "$tmp/$app/Contents/MacOS/Dimleaf"
+cat > "$tmp/$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -19,7 +22,8 @@ cat > "$app/Contents/Info.plist" <<PLIST
 <key>LSUIElement</key><true/>
 </dict></plist>
 PLIST
-codesign --force -s - "$app"
+codesign --force -s - "$tmp/$app"
+rm -rf "$app" && mv "$tmp/$app" .
 if [ "${1:-}" = install ]; then
   # 終了時に設定を元に戻すので 1 秒では終わらない。消えるまで待たないと open が -600 で失敗する
   pkill -x Dimleaf 2>/dev/null || true
