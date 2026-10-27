@@ -549,8 +549,18 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(.separator())
 
         let top = NSMenuItem(title: "CPU 使用率の上位", action: nil, keyEquivalent: "")
-        top.submenu = NSMenu()
-        for line in topProcesses() { top.submenu?.addItem(info(line)) }
+        // ps の起動に 0.1〜0.2 秒かかるので、メニューの表示を待たせないよう裏で読み、届いたら中身を入れる
+        let cpu = NSMenu()
+        cpu.addItem(info("読み込み中…"))
+        top.submenu = cpu
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let lines = self?.topProcesses() ?? []
+            DispatchQueue.main.async {
+                cpu.removeAllItems()
+                if lines.isEmpty { cpu.addItem(info("取得できませんでした")) }
+                for line in lines { cpu.addItem(info(line)) }
+            }
+        }
         menu.addItem(top)
         let mem = NSMenuItem(title: "メモリ使用の上位（圧縮分を含む）", action: nil, keyEquivalent: "")
         mem.submenu = NSMenu()
