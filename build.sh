@@ -4,8 +4,10 @@ set -e
 cd "$(dirname "$0")"
 app=Dimleaf.app
 # 一時ディレクトリでビルドし、成功したときだけ差し替える。失敗しても前の成果物が残る
-tmp=$(mktemp -d)
+# 同じディスク上に作り、差し替えをコピーではなく名前の変更で済ませる
+tmp=$(mktemp -d ./.build.XXXXXX)
 trap 'rm -rf "$tmp"' EXIT
+trap 'exit 1' HUP INT TERM
 mkdir -p "$tmp/$app/Contents/MacOS"
 swiftc -O -target x86_64-apple-macos11 Dimleaf.swift -o "$tmp/$app/Contents/MacOS/Dimleaf"
 cat > "$tmp/$app/Contents/Info.plist" <<PLIST

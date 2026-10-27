@@ -492,9 +492,12 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                     "swapMB": Mem.swapUsed >> 20, "pressure": Mem.pressureName,
                                     "hogs": hogs.map { ["name": $0.name, "pid": Int($0.pid), "MB": $0.bytes >> 20] }]
         // 中身が変わらないときは書かない（5 分ごとのメモリ確認のたびにディスクへ書かないように）
-        guard let data = try? JSONSerialization.data(withJSONObject: state, options: [.sortedKeys]), data != lastState else { return }
+        // ファイルが消されていたら中身が同じでも書き直す（CLI が state.json を頼りにしているため）
+        guard let data = try? JSONSerialization.data(withJSONObject: state, options: [.sortedKeys]),
+              data != lastState || !FileManager.default.fileExists(atPath: stateFile.path) else { return }
         try? FileManager.default.createDirectory(at: stateFile.deletingLastPathComponent(), withIntermediateDirectories: true)
-        if (try? data.write(to: stateFile)) != nil { lastState = data }
+        // CLI が 0.2 秒おきに読むので、書きかけを読ませないよう atomic にする
+        if (try? data.write(to: stateFile, options: .atomic)) != nil { lastState = data }
     }
 
     var modeName: String { deep ? "無操作で省電力中" : enabled ? "低電力モード ON" : "通常" }
