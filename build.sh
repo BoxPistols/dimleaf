@@ -8,7 +8,9 @@ app=Dimleaf.app
 tmp=$(mktemp -d ./.build.XXXXXX)
 trap 'rm -rf "$tmp"' EXIT
 trap 'exit 1' HUP INT TERM
-mkdir -p "$tmp/$app/Contents/MacOS"
+# アイコンは make-icon.swift で作った Dimleaf.icns（作り直すときの手順はそのファイルの先頭）
+mkdir -p "$tmp/$app/Contents/MacOS" "$tmp/$app/Contents/Resources"
+cp Dimleaf.icns "$tmp/$app/Contents/Resources/"
 swiftc -O -target x86_64-apple-macos11 Dimleaf.swift -o "$tmp/$app/Contents/MacOS/Dimleaf"
 cat > "$tmp/$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -17,6 +19,7 @@ cat > "$tmp/$app/Contents/Info.plist" <<PLIST
 <key>CFBundleExecutable</key><string>Dimleaf</string>
 <key>CFBundleIdentifier</key><string>local.dimleaf</string>
 <key>CFBundleName</key><string>Dimleaf</string>
+<key>CFBundleIconFile</key><string>Dimleaf</string>
 <key>CFBundleShortVersionString</key><string>0.1.0</string>
 <key>CFBundleVersion</key><string>1</string>
 <key>CFBundlePackageType</key><string>APPL</string>
