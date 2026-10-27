@@ -37,7 +37,7 @@ func draw(_ ctx: CGContext) {
 }
 
 let dir = URL(fileURLWithPath: "Dimleaf.iconset")
-try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
 for size in [16, 32, 128, 256, 512] {
     for scale in [1, 2] {
         let px = size * scale
