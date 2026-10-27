@@ -557,6 +557,7 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let lines = self?.topProcesses() ?? []
             DispatchQueue.main.async {
                 cpu.removeAllItems()
+                if lines.isEmpty { cpu.addItem(info("取得できませんでした")) }
                 for line in lines { cpu.addItem(info(line)) }
             }
         }
